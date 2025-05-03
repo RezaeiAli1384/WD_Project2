@@ -18,9 +18,7 @@ import threading, time
 📌 مسیر حذف پایگاه داده
 در ابتدای کد، مسیر زیر تعریف شده است:
 
-python
-Copy
-Edit
+
 @app.route('/database/drop', methods=['DELETE'])
 def drop_database():
     """
@@ -30,13 +28,6 @@ def drop_database():
     mongo.cx.drop_database('todo_db')
     return jsonify({"message": "Database 'todo_db' dropped successfully"}), 200
 در این بخش:
-GeeksforGeeks
-+3
-MongoDB
-+3
-Geek Docs
-+3
-
 @app.route('/database/drop', methods=['DELETE']) یک مسیر HTTP تعریف می‌کند که فقط درخواست‌های DELETE را می‌پذیرد.
 
 تابع drop_database با استفاده از mongo.cx.drop_database('todo_db') پایگاه داده‌ای به نام 'todo_db' را حذف می‌کند.
@@ -53,15 +44,9 @@ Geek Docs
 ✅ مثال استفاده
 برای حذف پایگاه داده، می‌توانید از ابزارهایی مانند curl یا Postman استفاده کنید:
 
-bash
-Copy
-Edit
 curl -X DELETE http://localhost:8000/database/drop
 پاسخ:
 
-json
-Copy
-Edit
 {
   "message": "Database 'todo_db' dropped successfully"
 }

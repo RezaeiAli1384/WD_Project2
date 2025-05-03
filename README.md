@@ -1,399 +1,238 @@
-1. Import کتابخانه ها و تنظیمات اولیه
-python
+**توضیحات کامل کد خط به خط با مثال‌ها و نکات ریز:**
 
+---
+
+### **1. Import کتابخانه‌ها**
+```python
 from flask import Flask, jsonify, request
 from flask_pymongo import PyMongo
 from bson.objectid import ObjectId
 from pymongo import UpdateOne
-from datetime import datetime, timedelta
-import threading
-import time
+from datetime import datetime
+```
+- **Flask**: فریمورک اصلی برای ساخت API.
+- **jsonify**: تبدیل دیکشنری پایتون به JSON.
+- **request**: دسترسی به داده‌های درخواست HTTP.
+- **PyMongo**: ادغام Flask با MongoDB.
+- **ObjectId**: مدیریت شناسه‌های منحصر به فرد MongoDB.
+- **UpdateOne**: انجام عملیات bulk update در MongoDB.
+- **datetime**: مدیریت زمان ایجاد و به‌روزرسانی تسک‌ها.
 
-    توضیح:
+---
 
-        Flask برای ساخت وب اپلیکیشن.
-
-        jsonify برای تبدیل دیکشنریهای پایتون به پاسخهای JSON.
-
-        request برای دسترسی به دادههای ارسالی در درخواستها.
-
-        PyMongo برای ادغام Flask با MongoDB.
-
-        ObjectId برای کار با شناسههای منحصر به فرد MongoDB.
-
-        UpdateOne برای عملیات bulk update در MongoDB.
-
-        datetime و timedelta برای مدیریت زمان (مثلاً زمان ایجاد تسک).
-
-        threading و time برای اجرای تایمر بررسی ریمایندرها در پسزمینه.
-
-2. ایجاد برنامه Flask و اتصال به MongoDB
-python
-
+### **2. تنظیمات اولیه Flask و MongoDB**
+```python
 app = Flask(__name__)
-app.config['MONGO_URI'] = 'mongodb://localhost:27017/todo_db'
+app.config["MONGO_URI"] = "mongodb://localhost:27017/todo_db"
 mongo = PyMongo(app)
+```
+- **app**: شیء اصلی Flask.
+- **MONGO_URI**: آدرس پایگاه داده MongoDB (`todo_db`).
+- **mongo**: شیء اتصال به MongoDB برای انجام عملیات CRUD.
 
-    توضیح:
+**نکته:** اگر پایگاه داده وجود نداشته باشد، MongoDB به صورت خودکار آن را ایجاد می‌کند.
 
-        app شیء اصلی Flask است.
+---
 
-        MONGO_URI آدرس دیتابیس MongoDB را مشخص میکند (todo_db نام دیتابیس است).
+### **3. تابع کمکی `serialize_task`**
+```python
+def serialize_task(task):
+    return {
+        "id": str(task["_id"]),
+        "title": task.get("title", ""),
+        "description": task.get("description", ""),
+        "created_at": task.get("created_at", datetime.utcnow()).isoformat(),
+        "completed": task.get("completed", False)
+    }
+```
+- **هدف:** تبدیل سند MongoDB به فرمت JSON.
+- **جزئیات:**
+  - `_id` به رشته تبدیل می‌شود (چون JSON از ObjectId پشتیبانی نمی‌کند).
+  - `created_at` به فرمت ISO8601 تبدیل می‌شود (مثلاً `2023-10-01T12:34:56.789Z`).
+  - مقادیر پیش‌فرض برای فیلدهای اختیاری مانند `description` و `completed`.
 
-        mongo شیئی از PyMongo برای تعامل با دیتابیس.
+**مثال خروجی:**
+```json
+{
+  "id": "652a1b2c3d4e5f6a1b2c3d4e",
+  "title": "خرید شیر",
+  "description": "2 لیتر شیر از فروشگاه",
+  "created_at": "2023-10-12T08:30:45.123Z",
+  "completed": false
+}
+```
 
-    نکته: اگر دیتابیس وجود نداشته باشد، MongoDB به طور خودکار آن را ایجاد میکند.
+---
 
-    مثال: اگر دیتابیس در حال اجرا نباشد، خطای ConnectionFailure رخ میدهد.
-
-3. روت اصلی (صفحه خوشآمدگویی)
-python
-
+### **4. صفحه اصلی (`GET /`)**
+```python
 @app.route('/', methods=['GET'])
 def home():
-    return jsonify({"message": "Welcome to the Task API! Use /tasks to see all tasks."}), 200
+    return jsonify({
+        "message": "به API مدیریت تسک‌ها خوش آمدید! 🎉",
+        "endpoints": {
+            "get_all_tasks": "GET /tasks",
+            "create_task": "POST /tasks",
+            "get_task": "GET /tasks/<task_id>",
+            "update_task": "PUT /tasks/<task_id>",
+            "delete_task": "DELETE /tasks/<task_id>",
+            "search_tasks": "GET /tasks/search?q=...",
+            "delete_all_tasks": "DELETE /tasks/all",
+            "bulk_update": "PUT /tasks/bulk/update",
+            "delete_database": "DELETE /database/delete"
+        },
+        "example_url": "http://192.168.1.107:8000/tasks"
+    }), 200
+```
+- **هدف:** ارائه راهنمای API به کاربران.
+- **جزئیات:**
+  - لیست کامل endpointها با متدهای مربوطه.
+  - مثال URL برای تست سریع.
 
-    توضیح:
+**مثال خروجی:**
+```json
+{
+  "message": "به API مدیریت تسک‌ها خوش آمدید! 🎉",
+  "endpoints": {
+    "get_all_tasks": "GET /tasks",
+    "create_task": "POST /tasks",
+    ...
+  },
+  "example_url": "http://192.168.1.107:8000/tasks"
+}
+```
 
-        با دسترسی به آدرس اصلی (/)، پیام خوشآمدگویی نمایش داده میشود.
+---
 
-        کد وضعیت 200 به معنای موفقیتآمیز بودن درخواست است.
-
-    مثال:
-    
-
-curl http://localhost:8000/
-
-خروجی:
-json
-
-    {"message": "Welcome to the Task API! Use /tasks to see all tasks."}
-
-4. دریافت همه تسکها (GET /tasks)
-python
-
+### **5. دریافت تمام تسک‌ها (`GET /tasks`)**
+```python
 @app.route('/tasks', methods=['GET'])
 def get_all_tasks():
-    tasks = list(mongo.db.tasks.find())
-    for task in tasks:
-        task['_id'] = str(task['_id'])
-    return jsonify(tasks), 200
+    try:
+        tasks = list(mongo.db.tasks.find())
+        return jsonify([serialize_task(task) for task in tasks]), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+```
+- **هدف:** بازیابی تمام تسک‌ها از دیتابیس.
+- **جزئیات:**
+  - استفاده از `find()` برای دریافت تمام اسناد.
+  - تبدیل هر سند با تابع `serialize_task`.
+  - مدیریت خطا با کد وضعیت 500.
 
-    توضیح:
-
-        همه داکیومنتها از collection tasks را میخواند.
-
-        ObjectId به رشته تبدیل میشود چون JSON از آن پشتیبانی نمیکند.
-
-    نکته: اگر collection خالی باشد، لیست خالی برگردانده میشود.
-
-    مثال:
-    
-
+**مثال درخواست:**
+```bash
 curl http://localhost:8000/tasks
+```
+
+---
+
+### **6. ایجاد تسک (`POST /tasks`)**
+```python
+@app.route('/tasks', methods=['POST'])
+def create_task():
+    try:
+        data = request.get_json(force=True)
+        # ... (ایجاد تک یا گروهی تسک)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+```
+- **هدف:** ایجاد یک یا چند تسک جدید.
+- **جزئیات:**
+  - `force=True`: حتی اگر کلاینت `Content-Type` را تنظیم نکرده باشد، داده را به عنوان JSON پردازش می‌کند.
+  - پشتیبانی از ایجاد تک تسک و گروهی.
+
+**مثال درخواست تک تسک:**
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"title": "تماس با مشتری"}' http://localhost:8000/tasks
+```
+
+**مثال درخواست گروهی:**
+```bash
+curl -X POST -H "Content-Type: application/json" -d '[{"title": "تسک 1"}, {"title": "تسک 2"}]' http://localhost:8000/tasks
+```
+
+---
+
+### **7. دریافت تک تسک (`GET /tasks/<task_id>`)**
+```python
+@app.route('/tasks/<task_id>', methods=['GET'])
+def get_task(task_id):
+    try:
+        if not ObjectId.is_valid(task_id):
+            return jsonify({"error": "شناسه تسک نامعتبر است"}), 400
+        task = mongo.db.tasks.find_one({"_id": ObjectId(task_id)})
+        # ...
+```
+- **هدف:** دریافت جزئیات یک تسک خاص.
+- **جزئیات:**
+  - بررسی معتبر بودن `ObjectId`.
+  - استفاده از `find_one()` برای جستجوی تسک.
+
+**مثال خطا (شناسه نامعتبر):**
+```json
+{"error": "شناسه تسک نامعتبر است"}
+```
+
+---
+
+### **8. به‌روزرسانی تک تسک (`PUT /tasks/<task_id>`)**
+```python
+updates = {}
+if "title" in data:
+    updates["title"] = data["title"]
+# ...
+```
+- **هدف:** به‌روزرسانی بخشی از اطلاعات یک تسک.
+- **جزئیات:**
+  - فقط فیلدهای ارسال شده آپدیت می‌شوند.
+  - استفاده از `$set` در MongoDB برای به‌روزرسانی جزئی.
+
+**مثال درخواست:**
+```bash
+curl -X PUT -H "Content-Type: application/json" -d '{"completed": true}' http://localhost:8000/tasks/1234567890ab
+```
+
+---
+
+### **9. به‌روزرسانی گروهی (`PUT /tasks/bulk/update`)**
+```python
+operations = []
+for item in data:
+    operations.append(UpdateOne(...))
+result = mongo.db.tasks.bulk_write(operations, ordered=False)
+```
+- **هدف:** به‌روزرسانی چندین تسک در یک درخواست.
+- **جزئیات:**
+  - استفاده از `bulk_write` برای کارایی بهتر.
+  - `ordered=False`: ادامه عملیات حتی در صورت خطا در برخی آیتم‌ها.
+
+**مثال درخواست:**
+```bash
+curl -X PUT -H "Content-Type: application/json" -d '[{"id": "123", "title": "تسک جدید"}, {"id": "456", "completed": true}]' http://localhost:8000/tasks/bulk/update
+```
+
+---
+
+### **10. حذف کامل پایگاه داده (`DELETE /database/delete`)**
+```python
+mongo.db.client.drop_database('todo_db')
+```
+- **هدف:** پاک کردن کامل پایگاه داده (فقط برای محیط توسعه!).
+- **هشدار:** این عمل غیرقابل بازگشت است!
+
+**مثال درخواست:**
+```bash
+curl -X DELETE http://localhost:8000/database/delete
+```
 
-خروجی:
-json
+---
 
-    [
-      {
-        "_id": "60a1b2c3d4e5f6a1b2c3d4e5",
-        "title": "Buy milk",
-        "completed": false
-      }
-    ]
+### **نکات امنیتی و بهبودها**
+- **اعتبارسنجی ورودی:** بررسی وجود `title` و فرمت `ObjectId`.
+- **مدیریت خطا:** استفاده از `try-except` در تمام endpointها.
+- **محدودیت‌ها:** عدم وجود احراز هویت و محدودیت نرخ.
 
-5. ایجاد چندین تسک همزمان (POST /tasks/bulk)
-python
+---
 
-@app.route('/tasks/bulk', methods=['POST'])
-def create_tasks_bulk():
-    data = request.get_json(force=True)
-    if not isinstance(data, list) or not data:
-        return jsonify({"error": "Provide a non-empty list"}), 400
-
-    docs = []
-    for item in data:
-        if 'title' not in item:
-            return jsonify({"error": "Each task must have a title"}), 400
-        docs.append({
-            'title': item['title'],
-            'description': item.get('description', ''),
-            'completed': bool(item.get('completed', False)),
-            'created_at': datetime.utcnow(),
-            'reminder_time': item.get('reminder_time')
-        })
-    result = mongo.db.tasks.insert_many(docs)
-    return jsonify({"inserted_ids": [str(_id) for _id in result.inserted_ids]}), 201
-
-    توضیح:
-
-        force=True در get_json() حتی اگر کلاینت هدر Content-Type را تنظیم نکرده باشد، داده را به عنوان JSON پردازش میکند.
-
-        هر تسک باید حتماً title داشته باشد.
-
-        reminder_time اختیاری است (مثلاً 2023-05-20T15:30:00).
-
-        created_at زمان فعلی را به وقت UTC ذخیره میکند.
-
-    نکته: bool(item.get('completed', False)) حتی اگر مقدار completed رشته یا عدد باشد، به boolean تبدیل میشود.
-
-    مثال:
-    
-
-curl -X POST -H "Content-Type: application/json" -d '[{"title": "Task 1"}, {"title": "Task 2", "completed": "true"}]' http://localhost:8000/tasks/bulk
-
-خروجی:
-json
-
-    {"inserted_ids": ["60a1b2c3d4e5f6a1b2c3d4e5", "60a1b2c3d4e5f6a1b2c3d4e6"]}
-
-6. بهروزرسانی چندین تسک همزمان (PUT /tasks/bulk)
-python
-
-@app.route('/tasks/bulk', methods=['PUT'])
-def update_tasks_bulk():
-    data = request.get_json(force=True)
-    if not isinstance(data, list) or not data:
-        return jsonify({"error": "Provide a non-empty list"}), 400
-
-    operations = []
-    for item in data:
-        tid = item.get('id')
-        if not tid or not ObjectId.is_valid(tid):
-            continue
-        oid = ObjectId(tid)
-        updates = {}
-        for field in ('title', 'description', 'completed', 'reminder_time'):
-            if field in item:
-                updates[field] = bool(item[field]) if field == 'completed' else item[field]
-        if updates:
-            operations.append(UpdateOne({'_id': oid}, {'$set': updates}))
-
-    if not operations:
-        return jsonify({"error": "No valid updates provided"}), 400
-
-    res = mongo.db.tasks.bulk_write(operations, ordered=False)
-    return jsonify({
-        "matched_count": res.matched_count,
-        "modified_count": res.modified_count
-    }), 200
-
-    توضیح:
-
-        هر آیتم در لیست داده باید id معتبر (ObjectId) داشته باشد.
-
-        ordered=False باعث میشود عملیاتها به ترتیب اجرا نشوند و خطا در یکی، بقیه را متوقف نکند.
-
-        $set در MongoDB فقط فیلدهای مشخص شده را بهروز میکند.
-
-    نکته: اگر reminder_time به null تنظیم شود، حذف نمیشود. برای حذف باید از $unset استفاده کرد.
-
-    مثال:
-    
-
-curl -X PUT -H "Content-Type: application/json" -d '[{"id": "60a1b2c3d4e5f6a1b2c3d4e5", "title": "New Title"}, {"id": "invalid_id", "completed": true}]' http://localhost:8000/tasks/bulk
-
-خروجی:
-json
-
-    {"matched_count": 1, "modified_count": 1}
-
-7. حذف چندین تسک همزمان (DELETE /tasks/bulk)
-python
-
-@app.route('/tasks/bulk', methods=['DELETE'])
-def delete_tasks_bulk():
-    data = request.get_json(force=True)
-    if not data or 'ids' not in data or not isinstance(data['ids'], list):
-        return jsonify({"error": "Provide an array of ids"}), 400
-
-    valid_ids = [ObjectId(i) for i in data['ids'] if ObjectId.is_valid(i)]
-    if not valid_ids:
-        return jsonify({"error": "No valid IDs provided"}), 400
-
-    res = mongo.db.tasks.delete_many({'_id': {'$in': valid_ids}})
-    return jsonify({
-        "deleted_count": res.deleted_count
-    }), 200
-
-    توضیح:
-
-        ids باید لیستی از شناسههای معتبر باشد.
-
-        $in در MongoDB برای تطابق هر یک از شناسهها استفاده میشود.
-
-    نکته: شناسههای نامعتبر نادیده گرفته میشوند.
-
-    مثال:
-    
-
-curl -X DELETE -H "Content-Type: application/json" -d '{"ids": ["60a1b2c3d4e5f6a1b2c3d4e5", "invalid_id"]}' http://localhost:8000/tasks/bulk
-
-خروجی:
-json
-
-    {"deleted_count": 1}
-
-8. جستجوی تسکها (GET /tasks/search)
-python
-
-@app.route('/tasks/search', methods=['GET'])
-def search_tasks():
-    query = {}
-    title = request.args.get('title')
-    description = request.args.get('description')
-    created_at = request.args.get('created_at')
-
-    if title:
-        query['title'] = {'$regex': title, '$options': 'i'}
-    if description:
-        query['description'] = {'$regex': description, '$options': 'i'}
-    if created_at:
-        try:
-            date = datetime.strptime(created_at, "%Y-%m-%d")
-            next_day = date + timedelta(days=1)
-            query['created_at'] = {'$gte': date, '$lt': next_day}
-        except:
-            return jsonify({"error": "created_at format should be YYYY-MM-DD"}), 400
-
-    tasks = list(mongo.db.tasks.find(query))
-    for task in tasks:
-        task['_id'] = str(task['_id'])
-    return jsonify(tasks), 200
-
-    توضیح:
-
-        $regex برای جستجوی متن با حساسیت به حروف (با i برای بیحساسی به حروف).
-
-        created_at باید به فرمت YYYY-MM-DD باشد و تمام تسکهای آن روز را برمیگرداند.
-
-    مثال:
-    
-
-curl "http://localhost:8000/tasks/search?title=work&created_at=2023-05-20"
-
-خروجی:
-json
-
-    [{"_id": "60a1b2c3d4e5f6a1b2c3d4e5", "title": "Work on project", "created_at": "2023-05-20T00:00:00"}]
-
-9. تابع بررسی ریمایندرها (پسزمینه)
-python
-
-def check_reminders():
-    while True:
-        now = datetime.utcnow()
-        tasks = mongo.db.tasks.find({
-            'reminder_time': {'$exists': True, '$ne': None}
-        })
-        for task in tasks:
-            reminder_time = datetime.strptime(task['reminder_time'], "%Y-%m-%dT%H:%M:%S")
-            if now >= reminder_time:
-                print(f"🔔 Reminder: Task '{task['title']}' is due!")
-                mongo.db.tasks.update_one({'_id': task['_id']}, {'$unset': {'reminder_time': ""}})
-        time.sleep(30)
-
-    توضیح:
-
-        هر ۳۰ ثانیه یکبار تسکهایی که reminder_time دارند را بررسی میکند.
-
-        اگر زمان ریمایندر فرا رسیده باشد، پیام چاپ شده و reminder_time حذف میشود.
-
-    نکته: فرمت reminder_time باید دقیقاً %Y-%m-%dT%H:%M:%S باشد (مثلاً 2023-05-20T15:30:00).
-
-    مثال: اگر reminder_time یک تسک برابر با زمان فعلی باشد، در کنسول سرور پیام نمایش داده میشود.
-
-10. شمارش تسکها (GET /tasks/count)
-python
-
-@app.route('/tasks/count', methods=['GET'])
-def count_tasks():
-    total = mongo.db.tasks.count_documents({})
-    completed = mongo.db.tasks.count_documents({'completed': True})
-    incomplete = mongo.db.tasks.count_documents({'completed': False})
-    return jsonify({
-        "total_tasks": total,
-        "completed_tasks": completed,
-        "incomplete_tasks": incomplete
-    }), 200
-
-    توضیح:
-
-        تعداد کل، تکمیل شده و نشده تسکها را برمیگرداند.
-
-    مثال:
-    
-
-curl http://localhost:8000/tasks/count
-
-خروجی:
-json
-
-    {"total_tasks": 5, "completed_tasks": 2, "incomplete_tasks": 3}
-
-11. اجرای تابع چکر ریمایندر در پسزمینه
-python
-
-threading.Thread(target=check_reminders, daemon=True).start()
-
-    توضیح:
-
-        تابع check_reminders در یک thread جداگانه به عنوان دیمن (پسزمینه) اجرا میشود.
-
-        daemon=True باعث میشود با بسته شدن برنامه اصلی، این thread نیز پایان یابد.
-
-12. اجرای برنامه
-python
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000, debug=True)
-
-    توضیح:
-
-        سرور روی همه آدرسهای شبکه (0.0.0.0) و پورت 8000 اجرا میشود.
-
-        debug=True برای نمایش خطاها در مرورگر (فقط در محیط توسعه).
-
-نکات کلی و امنیتی
-
-    اعتبارسنجی دادهها:
-
-        برخی اعتبارسنجیها مانند بررسی وجود title انجام شده، اما برای فیلدهایی مانند reminder_time اعتبارسنجی فرمت وجود ندارد.
-
-    امنیت:
-
-        استفاده از force=True در get_json() ممکن است خطراتی داشته باشد اگر کلاینت داده غیر JSON ارسال کند.
-
-        عدم وجود احراز هویت (Authentication) برای دسترسی به API.
-
-    خطاها:
-
-        برخی خطاها (مانند duplicate key) هندل نشدهاند.
-
-    کارایی:
-
-        استفاده از bulk_write برای عملیاتهای حجیم کارایی را بهبود میبخشد.
-
-مثال جامع
-
-سناریو: ایجاد تسک، تنظیم ریمایندر، آپدیت و حذف.
-
-    ایجاد تسک:
-    
-
-curl -X POST -H "Content-Type: application/json" -d '[{"title": "Finish report", "reminder_time": "2023-05-20T15:30:00"}]' http://localhost:8000/tasks/bulk
-
-بررسی ریمایندر:
-
-    در زمان مشخص شده، پیام در کنسول چاپ میشود و reminder_time حذف میگردد.
-
-آپدیت تسک:
-
-
-curl -X PUT -H "Content-Type: application/json" -d '[{"id": "60a1b2c3d4e5f6a1b2c3d4e5", "completed": true}]' http://localhost:8000/tasks/bulk
-
-حذف تسک:
-
-
-curl -X DELETE -H "Content-Type: application/json" -d '{"ids": ["60a1b2c3d4e5f6a1b2c3d4e5"]}' http://localhost:8000/tasks/bulk
+**پایان!** این توضیحات کامل تمام بخش‌های کد، مثال‌ها و نکات فنی را پوشش می‌دهد.

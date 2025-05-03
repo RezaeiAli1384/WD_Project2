@@ -40,8 +40,12 @@ def home():
             "get_all_tasks": "GET /tasks",
             "create_task": "POST /tasks",
             "get_task": "GET /tasks/<task_id>",
+            "update_task": "PUT /tasks/<task_id>",
+            "delete_task": "DELETE /tasks/<task_id>",
             "search_tasks": "GET /tasks/search?q=...",
-            "delete_all_tasks": "DELETE /tasks/all"
+            "delete_all_tasks": "DELETE /tasks/all",
+            "bulk_update": "PUT /tasks/bulk/update",
+            "delete_database": "DELETE /database/delete"
         },
         "example": "برای مشاهده تمام تسک‌ها به آدرس زیر مراجعه کنید:",
         "example_url": "http://192.168.1.107:8000/tasks"
@@ -98,7 +102,124 @@ def create_task():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# (D) حذف کامل تمام تسک‌ها
+# (D) دریافت یک تسک خاص
+@app.route('/tasks/<task_id>', methods=['GET'])
+def get_task(task_id):
+    try:
+        if not ObjectId.is_valid(task_id):
+            return jsonify({"error": "شناسه تسک نامعتبر است"}), 400
+        task = mongo.db.tasks.find_one({"_id": ObjectId(task_id)})
+        if task:
+            return jsonify(serialize_task(task)), 200
+        return jsonify({"error": "تسک یافت نشد"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# (E) به‌روزرسانی یک تسک
+@app.route('/tasks/<task_id>', methods=['PUT'])
+def update_task(task_id):
+    try:
+        if not ObjectId.is_valid(task_id):
+            return jsonify({"error": "شناسه تسک نامعتبر است"}), 400
+        
+        data = request.get_json(force=True)
+        if not data:
+            return jsonify({"error": "داده‌ای برای به‌روزرسانی ارسال نشده"}), 400
+
+        updates = {}
+        if "title" in data:
+            updates["title"] = data["title"]
+        if "description" in data:
+            updates["description"] = data["description"]
+        if "completed" in data:
+            updates["completed"] = bool(data["completed"])
+
+        if not updates:
+            return jsonify({"error": "فیلدی برای به‌روزرسانی مشخص نشده"}), 400
+
+        result = mongo.db.tasks.update_one(
+            {"_id": ObjectId(task_id)},
+            {"$set": updates}
+        )
+        if result.matched_count == 0:
+            return jsonify({"error": "تسک یافت نشد"}), 404
+        return jsonify({"message": "تسک با موفقیت به‌روزرسانی شد"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# (F) به‌روزرسانی گروهی تسک‌ها
+@app.route('/tasks/bulk/update', methods=['PUT'])
+def bulk_update_tasks():
+    try:
+        data = request.get_json(force=True)
+        if not isinstance(data, list) or not data:
+            return jsonify({"error": "لیست داده‌ها خالی است"}), 400
+
+        operations = []
+        for idx, item in enumerate(data, 1):
+            if "id" not in item:
+                return jsonify({"error": f"آیتم {idx}: شناسه تسک وجود ندارد"}), 400
+            
+            if not ObjectId.is_valid(item["id"]):
+                return jsonify({"error": f"آیتم {idx}: شناسه تسک نامعتبر است"}), 400
+            
+            updates = {}
+            if "title" in item:
+                updates["title"] = item["title"]
+            if "description" in item:
+                updates["description"] = item["description"]
+            if "completed" in item:
+                updates["completed"] = bool(item["completed"])
+            
+            if not updates:
+                return jsonify({"error": f"آیتم {idx}: هیچ فیلدی برای به‌روزرسانی مشخص نشده"}), 400
+            
+            operations.append(
+                UpdateOne(
+                    {"_id": ObjectId(item["id"])},
+                    {"$set": updates}
+                )
+            )
+
+        result = mongo.db.tasks.bulk_write(operations, ordered=False)
+        return jsonify({
+            "message": "به‌روزرسانی گروهی با موفقیت انجام شد",
+            "matched_count": result.matched_count,
+            "modified_count": result.modified_count
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# (G) حذف یک تسک
+@app.route('/tasks/<task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    try:
+        if not ObjectId.is_valid(task_id):
+            return jsonify({"error": "شناسه تسک نامعتبر است"}), 400
+        result = mongo.db.tasks.delete_one({"_id": ObjectId(task_id)})
+        if result.deleted_count == 0:
+            return jsonify({"error": "تسک یافت نشد"}), 404
+        return jsonify({"message": "تسک با موفقیت حذف شد"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# (H) جستجوی تسک‌ها
+@app.route('/tasks/search', methods=['GET'])
+def search_tasks():
+    try:
+        search_term = request.args.get('q', '')
+        query = {
+            "$or": [
+                {"title": {"$regex": search_term, "$options": "i"}},
+                {"description": {"$regex": search_term, "$options": "i"}}
+            ]
+        }
+        tasks = list(mongo.db.tasks.find(query))
+        return jsonify([serialize_task(task) for task in tasks]), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# (I) حذف تمام تسک‌ها
 @app.route('/tasks/all', methods=['DELETE'])
 def delete_all_tasks():
     try:
@@ -110,7 +231,14 @@ def delete_all_tasks():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# بقیه endpointها (دریافت تک تسک، جستجو، به‌روزرسانی و ...) مانند کد قبلی بدون تغییر باقی می‌مانند
+# (J) حذف کامل پایگاه داده
+@app.route('/database/delete', methods=['DELETE'])
+def delete_database():
+    try:
+        mongo.db.client.drop_database('todo_db')
+        return jsonify({"message": "پایگاه داده به طور کامل حذف شد"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # --------------------------
 # 4. اجرای سرور

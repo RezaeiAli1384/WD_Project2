@@ -1,8 +1,9 @@
-**توضیحات کامل کد خط به خط با مثال‌ها و نکات ریز:**
+در اینجا به‌صورت کامل و خط‌به‌خط کد Flask با اتصال به MongoDB برای مدیریت تسک‌ها را بررسی می‌کنیم. این کد شامل ایجاد، خواندن، به‌روزرسانی و حذف (CRUD) تسک‌ها است. همچنین، برای هر بخش مثال‌هایی با استفاده از Postman و curl ارائه شده است.
 
 ---
 
-### **1. Import کتابخانه‌ها**
+## 📦 1. وارد کردن کتابخانه‌ها
+
 ```python
 from flask import Flask, jsonify, request
 from flask_pymongo import PyMongo
@@ -10,31 +11,41 @@ from bson.objectid import ObjectId
 from pymongo import UpdateOne
 from datetime import datetime
 ```
-- **Flask**: فریمورک اصلی برای ساخت API.
-- **jsonify**: تبدیل دیکشنری پایتون به JSON.
-- **request**: دسترسی به داده‌های درخواست HTTP.
-- **PyMongo**: ادغام Flask با MongoDB.
-- **ObjectId**: مدیریت شناسه‌های منحصر به فرد MongoDB.
-- **UpdateOne**: انجام عملیات bulk update در MongoDB.
-- **datetime**: مدیریت زمان ایجاد و به‌روزرسانی تسک‌ها.
+
+
+
+**توضیح:**
+
+* `Flask`: فریم‌ورک وب برای ساخت API.
+* `jsonify`: تبدیل داده‌های پایتون به JSON برای پاسخ‌دهی.
+* `request`: دسترسی به داده‌های درخواست‌های HTTP.
+* `PyMongo`: اتصال بین Flask و MongoDB.
+* `ObjectId`: برای کار با شناسه‌های یکتای MongoDB.
+* `UpdateOne`: برای به‌روزرسانی‌های گروهی در MongoDB.
+* `datetime`: برای مدیریت تاریخ و زمان.
 
 ---
 
-### **2. تنظیمات اولیه Flask و MongoDB**
+## 🚀 2. پیکربندی برنامه Flask و اتصال به MongoDB
+
 ```python
 app = Flask(__name__)
 app.config["MONGO_URI"] = "mongodb://localhost:27017/todo_db"
 mongo = PyMongo(app)
 ```
-- **app**: شیء اصلی Flask.
-- **MONGO_URI**: آدرس پایگاه داده MongoDB (`todo_db`).
-- **mongo**: شیء اتصال به MongoDB برای انجام عملیات CRUD.
 
-**نکته:** اگر پایگاه داده وجود نداشته باشد، MongoDB به صورت خودکار آن را ایجاد می‌کند.
+
+
+**توضیح:**
+
+* `Flask(__name__)`: ایجاد یک نمونه از برنامه Flask.
+* `app.config["MONGO_URI"]`: تنظیم URI برای اتصال به پایگاه داده MongoDB.
+* `PyMongo(app)`: ایجاد اتصال بین Flask و MongoDB با استفاده از PyMongo.([AI Framework][1])
 
 ---
 
-### **3. تابع کمکی `serialize_task`**
+## 🧰 3. تابع کمکی برای سریال‌سازی تسک‌ها
+
 ```python
 def serialize_task(task):
     return {
@@ -45,116 +56,199 @@ def serialize_task(task):
         "completed": task.get("completed", False)
     }
 ```
-- **هدف:** تبدیل سند MongoDB به فرمت JSON.
-- **جزئیات:**
-  - `_id` به رشته تبدیل می‌شود (چون JSON از ObjectId پشتیبانی نمی‌کند).
-  - `created_at` به فرمت ISO8601 تبدیل می‌شود (مثلاً `2023-10-01T12:34:56.789Z`).
-  - مقادیر پیش‌فرض برای فیلدهای اختیاری مانند `description` و `completed`.
 
-**مثال خروجی:**
-```json
-{
-  "id": "652a1b2c3d4e5f6a1b2c3d4e",
-  "title": "خرید شیر",
-  "description": "2 لیتر شیر از فروشگاه",
-  "created_at": "2023-10-12T08:30:45.123Z",
-  "completed": false
-}
-```
+
+
+**توضیح:**
+
+این تابع یک سند MongoDB را به یک دیکشنری پایتون تبدیل می‌کند که می‌تواند به JSON تبدیل شود. این کار برای ارسال پاسخ‌های JSON به کلاینت‌ها ضروری است.
 
 ---
 
-### **4. صفحه اصلی (`GET /`)**
+## 🏠 4. مسیر اصلی (Home Route)
+
 ```python
 @app.route('/', methods=['GET'])
 def home():
     return jsonify({
         "message": "به API مدیریت تسک‌ها خوش آمدید! 🎉",
         "endpoints": {
-            "get_all_tasks": "GET /tasks",
-            "create_task": "POST /tasks",
+            "get_tasks": "GET /tasks",
+            "create_tasks": "POST /tasks",
             "get_task": "GET /tasks/<task_id>",
             "update_task": "PUT /tasks/<task_id>",
             "delete_task": "DELETE /tasks/<task_id>",
             "search_tasks": "GET /tasks/search?q=...",
-            "delete_all_tasks": "DELETE /tasks/all",
             "bulk_update": "PUT /tasks/bulk/update",
-            "delete_database": "DELETE /database/delete"
-        },
-        "example_url": "http://192.168.1.107:8000/tasks"
+            "bulk_delete": "DELETE /tasks/bulk/delete",
+            "delete_all_tasks": "DELETE /tasks/all",
+            "delete_database": "DELETE /database/delete",
+            "count_tasks": "GET /tasks/count"
+        }
     }), 200
 ```
-- **هدف:** ارائه راهنمای API به کاربران.
-- **جزئیات:**
-  - لیست کامل endpointها با متدهای مربوطه.
-  - مثال URL برای تست سریع.
 
-**مثال خروجی:**
-```json
-{
-  "message": "به API مدیریت تسک‌ها خوش آمدید! 🎉",
-  "endpoints": {
-    "get_all_tasks": "GET /tasks",
-    "create_task": "POST /tasks",
-    ...
-  },
-  "example_url": "http://192.168.1.107:8000/tasks"
-}
-```
+
+
+**توضیح:**
+
+این مسیر اطلاعاتی درباره API و مسیرهای موجود ارائه می‌دهد.
 
 ---
 
-### **5. دریافت تمام تسک‌ها (`GET /tasks`)**
+## 📋 5. دریافت لیست تسک‌ها با فیلتر و صفحه‌بندی
+
 ```python
 @app.route('/tasks', methods=['GET'])
-def get_all_tasks():
+def get_tasks():
     try:
-        tasks = list(mongo.db.tasks.find())
-        return jsonify([serialize_task(task) for task in tasks]), 200
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 10))
+        sort_by = request.args.get('sort_by', 'created_at')
+        order = request.args.get('order', 'desc')
+        completed = request.args.get('completed')
+        q = request.args.get('q', '')
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+
+        query = {}
+        if q:
+            query['$or'] = [
+                {"title": {"$regex": q, "$options": "i"}},
+                {"description": {"$regex": q, "$options": "i"}}
+            ]
+        if completed is not None:
+            query['completed'] = completed.lower() == 'true'
+        if date_from or date_to:
+            range_query = {}
+            if date_from:
+                range_query['$gte'] = datetime.fromisoformat(date_from)
+            if date_to:
+                range_query['$lte'] = datetime.fromisoformat(date_to)
+            query['created_at'] = range_query
+
+        sort_direction = -1 if order == 'desc' else 1
+        skips = per_page * (page - 1)
+        cursor = mongo.db.tasks.find(query) \
+            .sort(sort_by, sort_direction) \
+            .skip(skips) \
+            .limit(per_page)
+
+        tasks = [serialize_task(task) for task in cursor]
+        return jsonify({
+            "page": page,
+            "per_page": per_page,
+            "tasks": tasks
+        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 ```
-- **هدف:** بازیابی تمام تسک‌ها از دیتابیس.
-- **جزئیات:**
-  - استفاده از `find()` برای دریافت تمام اسناد.
-  - تبدیل هر سند با تابع `serialize_task`.
-  - مدیریت خطا با کد وضعیت 500.
 
-**مثال درخواست:**
+
+
+**توضیح:**
+
+این مسیر لیستی از تسک‌ها را با امکان فیلتر کردن بر اساس وضعیت تکمیل، جستجو در عنوان و توضیحات، و فیلتر بر اساس تاریخ ایجاد ارائه می‌دهد. همچنین، امکان صفحه‌بندی نتایج وجود دارد.
+
+**مثال با curl:**
+
 ```bash
-curl http://localhost:8000/tasks
+curl -X GET "http://localhost:8000/tasks?page=1&per_page=5&completed=true&q=meeting"
 ```
+
+
+
+**مثال با Postman:**
+
+* روش: GET
+* URL: [http://localhost:8000/tasks](http://localhost:8000/tasks)
+* پارامترها:
+
+  * page: 1
+  * per\_page: 5
+  * completed: true
+  * q: meeting([MongoDB][2], [Codez Up][3], [The Linux Code][4])
 
 ---
 
-### **6. ایجاد تسک (`POST /tasks`)**
+## 📝 6. ایجاد تسک جدید (تکی یا گروهی)
+
 ```python
 @app.route('/tasks', methods=['POST'])
-def create_task():
+def create_tasks():
     try:
         data = request.get_json(force=True)
-        # ... (ایجاد تک یا گروهی تسک)
+        if not data:
+            return jsonify({"error": "داده‌ای ارسال نشده است"}), 400
+
+        if isinstance(data, list):
+            inserted_ids = []
+            for idx, task in enumerate(data, 1):
+                if 'title' not in task:
+                    return jsonify({"error": f"آیتم {idx}: عنوان الزامی است"}), 400
+                new_task = {
+                    "title": task['title'],
+                    "description": task.get('description', ''),
+                    "created_at": datetime.utcnow(),
+                    "completed": False
+                }
+                result = mongo.db.tasks.insert_one(new_task)
+                inserted_ids.append(str(result.inserted_id))
+            return jsonify({
+                "message": f"{len(inserted_ids)} تسک ایجاد شد",
+                "task_ids": inserted_ids
+            }), 201
+
+        if 'title' not in data:
+            return jsonify({"error": "عنوان الزامی است"}), 400
+        new_task = {
+            "title": data['title'],
+            "description": data.get('description', ''),
+            "created_at": datetime.utcnow(),
+            "completed": False
+        }
+        result = mongo.db.tasks.insert_one(new_task)
+        return jsonify(serialize_task({**new_task, '_id': result.inserted_id})), 201
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 ```
-- **هدف:** ایجاد یک یا چند تسک جدید.
-- **جزئیات:**
-  - `force=True`: حتی اگر کلاینت `Content-Type` را تنظیم نکرده باشد، داده را به عنوان JSON پردازش می‌کند.
-  - پشتیبانی از ایجاد تک تسک و گروهی.
 
-**مثال درخواست تک تسک:**
+
+
+**توضیح:**
+
+این مسیر امکان ایجاد یک تسک جدید یا چندین تسک به‌صورت گروهی را فراهم می‌کند. در صورت ارسال لیستی از تسک‌ها، هر کدام بررسی و در پایگاه داده ذخیره می‌شوند.
+
+**مثال با curl (تسک تکی):**
+
 ```bash
-curl -X POST -H "Content-Type: application/json" -d '{"title": "تماس با مشتری"}' http://localhost:8000/tasks
+curl -X POST http://localhost:8000/tasks \
+     -H "Content-Type: application/json" \
+     -d '{"title": "جلسه با تیم", "description": "بررسی پیشرفت پروژه"}'
 ```
 
-**مثال درخواست گروهی:**
-```bash
-curl -X POST -H "Content-Type: application/json" -d '[{"title": "تسک 1"}, {"title": "تسک 2"}]' http://localhost:8000/tasks
+
+
+**مثال با Postman (تسک گروهی):**
+
+* روش: POST
+* URL: [http://localhost:8000/tasks](http://localhost:8000/tasks)
+* بدنه (Body):
+
+```json
+[
+    {"title": "تسک 1", "description": "توضیح 1"},
+    {"title": "تسک 2", "description": "توضیح 2"}
+]
 ```
+
+([The Linux Code][4], [AI Framework][1])
 
 ---
 
-### **7. دریافت تک تسک (`GET /tasks/<task_id>`)**
+## 🔍 7. دریافت یک تسک خاص
+
 ```python
 @app.route('/tasks/<task_id>', methods=['GET'])
 def get_task(task_id):
@@ -162,78 +256,193 @@ def get_task(task_id):
         if not ObjectId.is_valid(task_id):
             return jsonify({"error": "شناسه تسک نامعتبر است"}), 400
         task = mongo.db.tasks.find_one({"_id": ObjectId(task_id)})
-        # ...
+        if not task:
+            return jsonify({"error": "تسک یافت نشد"}), 404
+        return jsonify(serialize_task(task)), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 ```
-- **هدف:** دریافت جزئیات یک تسک خاص.
-- **جزئیات:**
-  - بررسی معتبر بودن `ObjectId`.
-  - استفاده از `find_one()` برای جستجوی تسک.
 
-**مثال خطا (شناسه نامعتبر):**
+
+
+**توضیح:**
+
+این مسیر یک تسک خاص را بر اساس شناسه یکتا (ObjectId) بازمی‌گرداند.
+
+**مثال با curl:**
+
+```bash
+curl -X GET http://localhost:8000/tasks/60f7f9e2b
+::contentReference[oaicite:112]{index=112}
+ 
+```
+با توجه به درخواست شما برای ادامه توضیحات در مورد کد ارائه‌شده، در ادامه به بخش‌های جدیدی از کد و عملکرد آن‌ها می‌پردازیم. این توضیحات شامل جزئیات فنی، مثال‌های عملی، و نکات مهم برای درک بهتر نحوه عملکرد API مدیریت تسک‌ها با استفاده از Flask و MongoDB است.
+
+---
+
+## 🧩 بخش ۸: حذف تمام تسک‌ها
+
+```python
+@app.route('/tasks/all', methods=['DELETE'])
+def delete_all_tasks():
+    try:
+        result = mongo.db.tasks.delete_many({})
+        return jsonify({
+            "message": f"تمام تسک‌ها ({result.deleted_count}) حذف شدند",
+            "deleted_count": result.deleted_count
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+```
+
+### توضیحات:
+
+* **مسیر `/tasks/all`**: این مسیر برای حذف تمام تسک‌ها از پایگاه داده طراحی شده است.
+* **متد `DELETE`**: با استفاده از این متد، تمام اسناد موجود در مجموعه `tasks` حذف می‌شوند.
+* **عملکرد `delete_many({})`**: این متد تمام اسناد موجود در مجموعه را حذف می‌کند. آرگومان `{}` به معنای "همه اسناد" است.
+* **مدیریت خطا**: در صورت بروز خطا، پیام خطا به صورت JSON بازگشت داده می‌شود.
+
+### مثال:
+
+برای حذف تمام تسک‌ها، می‌توانید از دستور `curl` زیر استفاده کنید:
+
+```bash
+curl -X DELETE http://localhost:8000/tasks/all
+```
+
+پاسخ موفقیت‌آمیز:
+
 ```json
-{"error": "شناسه تسک نامعتبر است"}
+{
+  "message": "تمام تسک‌ها (5) حذف شدند",
+  "deleted_count": 5
+}
 ```
 
 ---
 
-### **8. به‌روزرسانی تک تسک (`PUT /tasks/<task_id>`)**
+## 🧩 بخش ۹: حذف کامل پایگاه داده
+
 ```python
-updates = {}
-if "title" in data:
-    updates["title"] = data["title"]
-# ...
-```
-- **هدف:** به‌روزرسانی بخشی از اطلاعات یک تسک.
-- **جزئیات:**
-  - فقط فیلدهای ارسال شده آپدیت می‌شوند.
-  - استفاده از `$set` در MongoDB برای به‌روزرسانی جزئی.
-
-**مثال درخواست:**
-```bash
-curl -X PUT -H "Content-Type: application/json" -d '{"completed": true}' http://localhost:8000/tasks/1234567890ab
+@app.route('/database/delete', methods=['DELETE'])
+def delete_database():
+    try:
+        mongo.db.client.drop_database('todo_db')
+        return jsonify({"message": "پایگاه داده به طور کامل حذف شد"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 ```
 
----
+### توضیحات:
 
-### **9. به‌روزرسانی گروهی (`PUT /tasks/bulk/update`)**
-```python
-operations = []
-for item in data:
-    operations.append(UpdateOne(...))
-result = mongo.db.tasks.bulk_write(operations, ordered=False)
-```
-- **هدف:** به‌روزرسانی چندین تسک در یک درخواست.
-- **جزئیات:**
-  - استفاده از `bulk_write` برای کارایی بهتر.
-  - `ordered=False`: ادامه عملیات حتی در صورت خطا در برخی آیتم‌ها.
+* **مسیر `/database/delete`**: این مسیر برای حذف کامل پایگاه داده `todo_db` طراحی شده است.
+* **متد `DELETE`**: با استفاده از این متد، پایگاه داده مورد نظر حذف می‌شود.
+* **عملکرد `drop_database('todo_db')`**: این متد پایگاه داده با نام `todo_db` را از سرور MongoDB حذف می‌کند.
+* **مدیریت خطا**: در صورت بروز خطا، پیام خطا به صورت JSON بازگشت داده می‌شود.
 
-**مثال درخواست:**
-```bash
-curl -X PUT -H "Content-Type: application/json" -d '[{"id": "123", "title": "تسک جدید"}, {"id": "456", "completed": true}]' http://localhost:8000/tasks/bulk/update
-```
+### مثال:
 
----
+برای حذف پایگاه داده، می‌توانید از دستور `curl` زیر استفاده کنید:
 
-### **10. حذف کامل پایگاه داده (`DELETE /database/delete`)**
-```python
-mongo.db.client.drop_database('todo_db')
-```
-- **هدف:** پاک کردن کامل پایگاه داده (فقط برای محیط توسعه!).
-- **هشدار:** این عمل غیرقابل بازگشت است!
-
-**مثال درخواست:**
 ```bash
 curl -X DELETE http://localhost:8000/database/delete
 ```
 
+پاسخ موفقیت‌آمیز:
+
+```json
+{
+  "message": "پایگاه داده به طور کامل حذف شد"
+}
+```
+
 ---
 
-### **نکات امنیتی و بهبودها**
-- **اعتبارسنجی ورودی:** بررسی وجود `title` و فرمت `ObjectId`.
-- **مدیریت خطا:** استفاده از `try-except` در تمام endpointها.
-- **محدودیت‌ها:** عدم وجود احراز هویت و محدودیت نرخ.
+## 🧩 بخش ۱۰: شمارش تسک‌ها با فیلترهای مختلف
+
+```python
+@app.route('/tasks/count', methods=['GET'])
+def count_tasks():
+    try:
+        completed = request.args.get('completed')
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        q = request.args.get('q', '')
+
+        query = {}
+        if completed is not None:
+            query['completed'] = completed.lower() == 'true'
+        if q:
+            query['$or'] = [
+                {"title": {"$regex": q, "$options": "i"}},
+                {"description": {"$regex": q, "$options": "i"}}
+            ]
+        if date_from or date_to:
+            range_q = {}
+            if date_from:
+                range_q['$gte'] = datetime.fromisoformat(date_from)
+            if date_to:
+                range_q['$lte'] = datetime.fromisoformat(date_to)
+            query['created_at'] = range_q
+
+        count = mongo.db.tasks.count_documents(query)
+        return jsonify({"count": count}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+```
+
+### توضیحات:
+
+* **مسیر `/tasks/count`**: این مسیر برای شمارش تعداد تسک‌ها با اعمال فیلترهای مختلف طراحی شده است.
+* **پارامترهای ورودی**:
+
+  * `completed`: وضعیت تکمیل تسک‌ها (`true` یا `false`).
+  * `date_from` و `date_to`: بازه زمانی ایجاد تسک‌ها.
+  * `q`: عبارت جستجو برای عنوان یا توضیحات تسک.
+* **ساخت کوئری MongoDB**: با استفاده از پارامترهای ورودی، کوئری مناسب برای شمارش تسک‌ها ساخته می‌شود.
+* **عملکرد `count_documents(query)`**: این متد تعداد اسنادی که با کوئری مشخص شده مطابقت دارند را برمی‌گرداند.
+
+### مثال:
+
+برای شمارش تعداد تسک‌های تکمیل‌شده، می‌توانید از دستور `curl` زیر استفاده کنید:
+
+```bash
+curl "http://localhost:8000/tasks/count?completed=true"
+```
+
+پاسخ موفقیت‌آمیز:
+
+```json
+{
+  "count": 3
+}
+```
 
 ---
 
-**پایان!** 
-**با تشکر از توجه شما **
+## 🧩 بخش ۱۱: راه‌اندازی سرور Flask
+
+```python
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8000, debug=True)
+```
+
+### توضیحات:
+
+* **اجرای سرور**: این بخش کد برای راه‌اندازی سرور Flask استفاده می‌شود.
+* **پارامتر `host='0.0.0.0'`**: این پارامتر باعث می‌شود سرور بر روی تمام اینترفیس‌های شبکه در دسترس باشد.
+* **پارامتر `port=8000`**: پورت ۸۰۰۰ برای دسترسی به سرور تعیین شده است.
+* **پارامتر `debug=True`**: حالت اشکال‌زدایی فعال می‌شود تا در صورت بروز خطا، اطلاعات مفیدی در کنسول نمایش داده شود.
+
+### نکات:
+
+* **حالت تولیدی**: در محیط تولیدی، بهتر است حالت اشکال‌زدایی را غیرفعال کنید تا اطلاعات حساس در دسترس قرار نگیرد.
+* **امنیت**: در محیط‌های تولیدی، اطمینان حاصل کنید که سرور فقط به آدرس‌های IP مجاز دسترسی داشته باشد.
+
+---
+
+## 🔄 جمع‌بندی
+
+در این بخش‌ها، به توضیح عملکرد و جزئیات فنی مسیرهای مختلف API مدیریت تسک‌ها پرداختیم. این API با استفاده از Flask و MongoDB طراحی شده است و امکاناتی مانند ایجاد، دریافت، به‌روزرسانی، حذف، جستجو، و شمارش تسک‌ها را فراهم می‌کند. همچنین، با استفاده از دستورهای `curl`، می‌توانید هر یک از این عملکردها را تست کنید و نتایج را مشاهده نمایید.
+
+---
